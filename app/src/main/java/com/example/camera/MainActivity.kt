@@ -10,7 +10,6 @@ import androidx.activity.compose.setContent
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.impl.utils.executor.CameraXExecutors
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -23,9 +22,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Camera
@@ -61,6 +57,25 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.geometry.CornerRadius
 
 
 
@@ -112,13 +127,12 @@ private fun CameraScreen() {
     val context = LocalContext.current
     val vm: MainViewModel = viewModel()
 
-
+    // CameraX solo para fotos
     val controller = remember {
         LifecycleCameraController(context).apply {
             setEnabledUseCases(CameraController.IMAGE_CAPTURE)
         }
     }
-
     var selector by remember { mutableStateOf(CameraSelector.DEFAULT_BACK_CAMERA) }
     LaunchedEffect(selector) { controller.cameraSelector = selector }
 
@@ -127,26 +141,32 @@ private fun CameraScreen() {
 
     Column(Modifier.fillMaxSize()) {
 
-        Box(
-            Modifier
+        RotatingRainbowFrame(
+            modifier = Modifier
                 .fillMaxWidth()
                 .height(cameraHeight)
                 .padding(12.dp)
         ) {
-            CameraPreview(controller = controller, modifier = Modifier.fillMaxSize())
 
+            CameraPreview(controller = controller, modifier = Modifier.fillMaxSize())
 
             FilledIconButton(
                 onClick = {
-                    selector = if (selector == CameraSelector.DEFAULT_BACK_CAMERA)
-                        CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+                    selector =
+                        if (selector == CameraSelector.DEFAULT_BACK_CAMERA)
+                            CameraSelector.DEFAULT_FRONT_CAMERA
+                        else
+                            CameraSelector.DEFAULT_BACK_CAMERA
                 },
                 modifier = Modifier.align(Alignment.TopStart)
             ) {
-                Icon(Icons.Default.Cameraswitch, contentDescription = stringResource(R.string.switch_camera))
+                Icon(
+                    imageVector = Icons.Default.Cameraswitch,
+                    contentDescription = stringResource(R.string.switch_camera)
+                )
             }
 
-
+            // Tomar foto
             FilledIconButton(
                 onClick = {
                     takeAndSaveToExternal(
@@ -154,7 +174,11 @@ private fun CameraScreen() {
                         controller = controller,
                         onSaved = { uri ->
                             vm.onPhotoSaved(uri)
-                            Toast.makeText(context, context.getString(R.string.photo_saved), Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.photo_saved),
+                                Toast.LENGTH_SHORT
+                            ).show()
                         },
                         onError = { e ->
                             Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
@@ -164,25 +188,41 @@ private fun CameraScreen() {
                 modifier = Modifier.align(Alignment.BottomCenter),
                 shape = CircleShape
             ) {
-                Icon(Icons.Default.Camera, contentDescription = stringResource(R.string.take_photo))
+                Icon(
+                    imageVector = Icons.Default.Camera,
+                    contentDescription = stringResource(R.string.take_photo)
+                )
             }
         }
 
+        // Galería de la sesión
         if (photos.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.no_photos))
             }
         } else {
-            LazyVerticalStaggeredGrid(
-                columns = StaggeredGridCells.Fixed(3),
-                verticalItemSpacing = 8.dp,
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(12.dp)
             ) {
                 items(photos) { uri ->
-                    AsyncImage(model = uri, contentDescription = null, modifier = Modifier.fillMaxWidth())
+                    Card(
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                    ) {
+                        AsyncImage(
+                            model = uri,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                 }
             }
         }
@@ -212,3 +252,59 @@ private fun takeAndSaveToExternal(
         }
     )
 }
+
+@Composable
+private fun RotatingRainbowFrame(
+    modifier: Modifier = Modifier,
+    cornerRadius: Dp = 18.dp,
+    frameWidth: Dp = 10.dp,
+    content: @Composable BoxScope.() -> Unit
+) {
+
+    val angle by rememberInfiniteTransition(label = "rainbow")
+        .animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(6000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "angle"
+        )
+
+    val colors = listOf(
+        Color(0xFF8E3200),  // dorado
+        Color(0xFF7C83FD),  // violeta
+        Color(0xFF21C4D6),  // cian
+        Color(0xFF00A878),  // verde
+        Color(0xFF8E3200)   // dorado
+    )
+
+    Box(
+        modifier
+            .clip(RoundedCornerShape(cornerRadius))
+            .drawBehind {
+                rotate(angle) {
+                    drawRoundRect(
+                        brush = Brush.sweepGradient(colors),
+                        cornerRadius = CornerRadius(
+                            cornerRadius.toPx(),
+                            cornerRadius.toPx()
+                        )
+                    )
+                }
+            }
+
+            .padding(frameWidth)
+    ) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .clip(RoundedCornerShape(cornerRadius - frameWidth))
+                .background(Color.Black)
+        ) {
+            content()
+        }
+    }
+}
+
