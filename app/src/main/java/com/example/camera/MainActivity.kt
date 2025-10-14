@@ -1,318 +1,214 @@
 package com.example.camera
 
-import PhotoBottomSheetContent
 import android.Manifest
-import android.annotation.SuppressLint
-import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Matrix
+import android.content.Context
 import android.os.Bundle
-import android.util.Log
+import android.os.Environment
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.annotation.RequiresPermission
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.ImageProxy
-import androidx.camera.video.FileOutputOptions
-import androidx.camera.video.Recording
-import androidx.camera.video.VideoRecordEvent
+import androidx.camera.core.impl.utils.executor.CameraXExecutors
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
-import androidx.camera.view.video.AudioConfig
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Cameraswitch
-import androidx.compose.material.icons.filled.Photo
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material3.BottomSheetScaffold
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.modifier.modifierLocalMapOf
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.camera.ui.theme.CameraTheme
-import kotlinx.coroutines.launch
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Locale
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
+
+
 
 class MainActivity : ComponentActivity() {
-
-    private var recording: Recording? = null
-
-
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        if(!hasRequiredPermissions()) {
-            ActivityCompat.requestPermissions(
-                this, CAMERAX_PERMISSIONS, 0
-            )
-        }
-        setContent {
-            CameraTheme {
-
-                val scope = rememberCoroutineScope()
-                val scaffoldState = rememberBottomSheetScaffoldState()
-                val controller = remember {
-                    LifecycleCameraController(applicationContext).apply {
-
-                        setEnabledUseCases(
-                            CameraController.IMAGE_CAPTURE or
-                                    CameraController.VIDEO_CAPTURE
-                        )
-                    }
-                }
-                val viewModel = viewModel<MainViewModel>()
-                val bitmaps by viewModel.bitmaps.collectAsState()
-
-                BottomSheetScaffold(
-                    scaffoldState = scaffoldState,
-                    sheetPeekHeight = 0.dp,
-                    sheetContent = {
-                        PhotoBottomSheetContent(
-                            bitmaps = bitmaps,
-                            modifier =  Modifier
-                                .fillMaxWidth()
-                        )
-                    }
-                ) { padding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding)
-                    ) {
-                        CameraPreview(
-                            controller = controller,
-                            modifier = Modifier
-                                .fillMaxSize()
-                        )
-
-                        IconButton(
-                            onClick = {
-                                controller.cameraSelector =
-                                    if( controller.cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
-                                        CameraSelector.DEFAULT_FRONT_CAMERA
-                                    } else CameraSelector.DEFAULT_BACK_CAMERA
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Cameraswitch,
-                                contentDescription = "Switch camera"
-                            )
-
-
-                        }
-                        Row (
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .align(Alignment.BottomCenter)
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceAround
-                        ){
-                            IconButton(
-                                onClick = {
-                                    scope.launch {
-                                        scaffoldState.bottomSheetState.expand()
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Photo,
-                                    contentDescription = "Open gallery"
-                                )
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    takePhoto(
-                                        controller = controller,
-                                        onPhotoTaken = viewModel::onTakePhoto
-                                    )
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PhotoCamera,
-                                    contentDescription = "Take photo"
-                                )
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    recordVideo(controller = controller)
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Videocam,
-                                    contentDescription = "Record video"
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        setContent { CameraTheme { App() } }
     }
+}
 
-    private fun takePhoto(
-        controller: LifecycleCameraController,
-        onPhotoTaken: (Bitmap) -> Unit
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+private fun App() {
+    val camPerm = rememberPermissionState(Manifest.permission.CAMERA)
+    if (camPerm.status.isGranted) {
+        CameraScreen()
+    } else {
+        PermissionScreen(onGrant = { camPerm.launchPermissionRequest() })
+    }
+}
+
+@Composable
+private fun PermissionScreen(onGrant: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFFEEF2FF), Color(0xFFE0F7FA), Color(0xFFFFF3E0))
+                )
+            ),
+        contentAlignment = Alignment.Center
     ) {
-
-        if(!hasRequiredPermissions()) {
-
-            return
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+            Text(stringResource(R.string.perm_title), style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(12.dp))
+            Text(stringResource(R.string.perm_sub))
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = onGrant, shape = CircleShape) {
+                Text(stringResource(R.string.perm_cta))
+            }
         }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CameraScreen() {
+    val context = LocalContext.current
+    val vm: MainViewModel = viewModel()
 
 
-        controller.takePicture(
-            ContextCompat.getMainExecutor(applicationContext),
-            object: ImageCapture.OnImageCapturedCallback() {
+    val controller = remember {
+        LifecycleCameraController(context).apply {
+            setEnabledUseCases(CameraController.IMAGE_CAPTURE)
+        }
+    }
 
-                override fun onCaptureSuccess(image: ImageProxy) {
-                    super.onCaptureSuccess(image)
+    var selector by remember { mutableStateOf(CameraSelector.DEFAULT_BACK_CAMERA) }
+    LaunchedEffect(selector) { controller.cameraSelector = selector }
 
-                    val matrix = Matrix().apply{
+    val photos by vm.photos.collectAsState()
+    val cameraHeight = (LocalConfiguration.current.screenHeightDp * 0.30f).dp
 
-                        postRotate(
-                            image.imageInfo.rotationDegrees.toFloat()
-                        )
-                        postScale(-1f, 1f)
-                    }
+    Column(Modifier.fillMaxSize()) {
 
-                    val rotatedBitmap = Bitmap.createBitmap(
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(cameraHeight)
+                .padding(12.dp)
+        ) {
+            CameraPreview(controller = controller, modifier = Modifier.fillMaxSize())
 
-                        image.toBitmap(),
-                        0,
-                        0,
-                        image.width,
-                        image.height,
-                        matrix,
-                        true
+
+            FilledIconButton(
+                onClick = {
+                    selector = if (selector == CameraSelector.DEFAULT_BACK_CAMERA)
+                        CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+                },
+                modifier = Modifier.align(Alignment.TopStart)
+            ) {
+                Icon(Icons.Default.Cameraswitch, contentDescription = stringResource(R.string.switch_camera))
+            }
+
+
+            FilledIconButton(
+                onClick = {
+                    takeAndSaveToExternal(
+                        context = context,
+                        controller = controller,
+                        onSaved = { uri ->
+                            vm.onPhotoSaved(uri)
+                            Toast.makeText(context, context.getString(R.string.photo_saved), Toast.LENGTH_SHORT).show()
+                        },
+                        onError = { e ->
+                            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
                     )
+                },
+                modifier = Modifier.align(Alignment.BottomCenter),
+                shape = CircleShape
+            ) {
+                Icon(Icons.Default.Camera, contentDescription = stringResource(R.string.take_photo))
+            }
+        }
 
-                    onPhotoTaken(rotatedBitmap)
-                }
-
-                override fun onError(exception: ImageCaptureException) {
-                    super.onError(exception)
-                    Log.e("Camera", "Couldn't take photo", exception)
+        if (photos.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(stringResource(R.string.no_photos))
+            }
+        } else {
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(3),
+                verticalItemSpacing = 8.dp,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp)
+            ) {
+                items(photos) { uri ->
+                    AsyncImage(model = uri, contentDescription = null, modifier = Modifier.fillMaxWidth())
                 }
             }
-        )
-    }
-
- //   @RequiresPermission(Manifest.permission.RECORD_AUDIO)
- @SuppressLint("MissingPermission")
-
- private fun recordVideo(controller: LifecycleCameraController) {
-
-        if(recording != null) {
-
-            recording?.stop()
-            recording = null
-            return
         }
-
-        if(!hasRequiredPermissions()) {
-
-            return
-        }
-
-        val outputFile = File(filesDir, "my-recording.mp4")
-        recording = controller.startRecording(
-
-            FileOutputOptions.Builder(outputFile).build(),
-            AudioConfig.create(true),
-            ContextCompat.getMainExecutor(applicationContext)
-        ) { event ->
-
-            when(event) {
-
-                is VideoRecordEvent.Finalize -> {
-
-                    if(event.hasError()) {
-
-                        recording?.close()
-                        recording = null
-
-                        Toast.makeText(
-                            applicationContext,
-                            "Video capture failed",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-
-                        Toast.makeText(
-                            applicationContext,
-                            "Video capture succeeded",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-
-                }
-            }
-
-        }
-
-
-    }
-
-    private fun hasRequiredPermissions(): Boolean {
-
-        return CAMERAX_PERMISSIONS.all {
-            ContextCompat.checkSelfPermission(
-
-                applicationContext,
-                it
-            ) == PackageManager.PERMISSION_GRANTED
-        }
-    }
-    companion object {
-        private val CAMERAX_PERMISSIONS = arrayOf(
-
-            Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO
-        )
     }
 }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
+private fun takeAndSaveToExternal(
+    context: Context,
+    controller: LifecycleCameraController,
+    onSaved: (String) -> Unit,
+    onError: (ImageCaptureException) -> Unit
+) {
+    val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+    val dir = File(baseDir, "PhotoBooth").apply { if (!exists()) mkdirs() }
+    val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
+    val output = File(dir, "IMG_$name.jpg")
+
+    val options = ImageCapture.OutputFileOptions.Builder(output).build()
+    controller.takePicture(
+        options,
+        ContextCompat.getMainExecutor(context),
+        object : ImageCapture.OnImageSavedCallback {
+            override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                onSaved(output.toUri().toString())
+            }
+            override fun onError(exception: ImageCaptureException) = onError(exception)
+        }
     )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    CameraTheme {
-        Greeting("Android")
-    }
 }

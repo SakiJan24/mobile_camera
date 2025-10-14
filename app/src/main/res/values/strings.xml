@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">Camera</string>
+    <string name="perm_title">Hola!, necesitamos el permiso de Cámara para funcionar </string>
+    <string name="perm_sub">Acepta los permisos para poder empezar</string>
+    <string name="perm_cta">Desbloquear la Cámara!</string>
+    <string name="switch_camera">Cambiar cámara</string>
+    <string name="take_photo">Tomar foto</string>
+    <string name="no_photos">No tienes fotos, toma una!</string>
+    <string name="photo_saved">Foto tomada y guardada</string>
 </resources>
