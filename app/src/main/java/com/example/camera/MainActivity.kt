@@ -102,19 +102,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 
-// geometría y dibujo
+// para geometría y dibujo
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.*
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.Stroke
-
-// matriz (no usada en la versión final del gradiente, queda por si se requiere)
-import android.graphics.Matrix
-
-
 
 // actividad principal: monta el tema y la raíz de la UI
 class MainActivity : ComponentActivity() {
@@ -138,13 +128,13 @@ private fun App() {
     }
 }
 
-// pantalla que solicita permiso con fondo degradado y CTA
+// pantalla que solicita permiso con fondo degradado
 @Composable
 private fun PermissionScreen(onGrant: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // fondo vertical con colores suaves
+            // fondo vertical con colores
             .background(
                 Brush.verticalGradient(
                     listOf(Color(0xFFEEF2FF), Color(0xFFE0F7FA), Color(0xFFFFF3E0))
@@ -182,20 +172,20 @@ private fun CameraScreen() {
             setEnabledUseCases(CameraController.IMAGE_CAPTURE)
         }
     }
-    // selector de cámara (frontal/trasera)
+    // selector de cámara adelante y atras
     var selector by remember { mutableStateOf(CameraSelector.DEFAULT_BACK_CAMERA) }
     // aplica el selector al controlador cuando cambie
     LaunchedEffect(selector) { controller.cameraSelector = selector }
 
     // colección de fotos guardadas en la sesión
     val photos by vm.photos.collectAsState()
-    // altura del visor basada en el alto de pantalla
+    // altura del visor
     val cameraHeight = (LocalConfiguration.current.screenHeightDp * 0.30f).dp
 
     // layout vertical principal
     Column(Modifier.fillMaxSize()) {
 
-        // marco animado con gradiente rotatorio alrededor del visor
+        // marco animado
         RotatingRainbowFrame(
             modifier = Modifier
                 .fillMaxWidth()
@@ -203,10 +193,10 @@ private fun CameraScreen() {
                 .padding(12.dp)
         ) {
 
-            // previsualización de la cámara ocupando el marco
+            // previsualización de la cámara
             CameraPreview(controller = controller, modifier = Modifier.fillMaxSize())
 
-            // botón para alternar entre cámara frontal y trasera
+            // botón para cambiar de camara
             FilledIconButton(
                 onClick = {
                     selector =
@@ -289,7 +279,8 @@ private fun CameraScreen() {
     }
 }
 
-// captura y guardado de imagen en almacenamiento privado de la app (Pictures/PhotoBooth)
+// captura y guardado de imagen en almacenamiento privado
+//esta en /storage/emulated/0/Android/data/com.example.photobooth/files/Pictures/PhotoBooth/IMG_20251015_123456.jpg
 private fun takeAndSaveToExternal(
     context: Context,
     controller: LifecycleCameraController,
@@ -312,17 +303,17 @@ private fun takeAndSaveToExternal(
         options,
         ContextCompat.getMainExecutor(context),
         object : ImageCapture.OnImageSavedCallback {
-            // callback exitoso con Uri del archivo guardado
+            // exito
             override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                 onSaved(output.toUri().toString())
             }
-            // callback de error
+            // error
             override fun onError(exception: ImageCaptureException) = onError(exception)
         }
     )
 }
 
-// contenedor con marco animado: rota solo los colores del gradiente
+// contenedor marco de coloores
 @Composable
 private fun RotatingRainbowFrame(
     modifier: Modifier = Modifier,
@@ -330,7 +321,7 @@ private fun RotatingRainbowFrame(
     frameWidth: Dp = 10.dp,
     content: @Composable BoxScope.() -> Unit
 ) {
-    // animación de ángulo 0..360 usada como desplazamiento del gradiente
+    // animacion para rotar
     val angle by rememberInfiniteTransition(label = "rainbow")
         .animateFloat(
             initialValue = 0f,
@@ -341,10 +332,10 @@ private fun RotatingRainbowFrame(
             ),
             label = "angle"
         )
-    // fracción 0..1 a partir del ángulo para desplazar stops
+
     val frac = (angle % 360f) / 360f
 
-    // paleta del borde animado
+    // paleta del "borde"
     val colors = listOf(
         Color(0xFF8E3200),  // dorado
         Color(0xFF7C83FD),  // violeta
@@ -360,7 +351,7 @@ private fun RotatingRainbowFrame(
         modifier
             .clip(RoundedCornerShape(cornerRadius))
             .drawWithCache {
-                // métricas del borde y radios
+                // borde y radios
                 val r = cornerRadius.toPx()
                 val stroke = frameWidth.toPx()
                 val inset = stroke / 2f
@@ -369,7 +360,7 @@ private fun RotatingRainbowFrame(
                 val cx = w / 2f
                 val cy = h / 2f
 
-                // recálculo de stops para simular rotación del color
+                // recálculo para simular rotación del color
                 val shifted = buildList {
                     for (i in baseStops.indices) {
                         val s = (baseStops[i] + frac)
@@ -378,13 +369,12 @@ private fun RotatingRainbowFrame(
                     }
                 }.sortedBy { it.first }
 
-                // brocha tipo sweep centrada en el marco con stops desplazados
                 val brush = Brush.sweepGradient(
                     center = androidx.compose.ui.geometry.Offset(cx, cy),
                     colorStops = shifted.toTypedArray()
                 )
 
-                // dibujo del borde como stroke con esquinas redondeadas
+                // dibujo del borde, las esquinas redondas
                 onDrawBehind {
                     drawRoundRect(
                         brush = brush,
@@ -405,7 +395,6 @@ private fun RotatingRainbowFrame(
                 .clip(RoundedCornerShape(cornerRadius - frameWidth))
                 .background(Color.Black)
         ) {
-            // contenido alojado dentro del marco (preview y botones)
             content()
         }
     }
